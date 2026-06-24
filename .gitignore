@@ -1,0 +1,25 @@
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Env/secrets
+.env
+.env.*
+!.env.example
+
+# Rust
+/target/
+Cargo.lock
+
+# Node/dashboard
+node_modules/
+dist/
+build/
+.vite/
+
+# Database/local runtime
+*.db
+*.sqlite
+*.sqlite3
+/tmp/
