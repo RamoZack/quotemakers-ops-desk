@@ -23,6 +23,31 @@ db/           migrations, seed data, SQL rules
 docs/         screenshots and architecture notes
 ```
 
+## Local Setup
+
+```bash
+createdb quotemakers_ops_desk
+psql -d quotemakers_ops_desk -f db/migrations/001_init.sql
+psql -d quotemakers_ops_desk -f db/seeds/001_seed.sql
+nix develop
+cd api
+cargo run
+```
+
+The API listens on `http://127.0.0.1:3000` by default.
+
+Useful endpoints:
+
+```text
+GET /health
+GET /sites
+GET /health-checks/recent
+GET /risk/high-value
+GET /risk/repeated-ip
+GET /risk/repeated-contact
+GET /ops/failed-health-checks
+```
+
 ## Why
 
 QuoteMakers needs a small external monitor that proves customer sites are up, static assets are serving, and quote activity looks healthy.
