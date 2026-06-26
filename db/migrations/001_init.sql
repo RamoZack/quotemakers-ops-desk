@@ -1,4 +1,4 @@
-CREATE TABLE sites (
+CREATE TABLE IF NOT EXISTS sites (
   id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   base_url TEXT NOT NULL UNIQUE,
@@ -8,7 +8,7 @@ CREATE TABLE sites (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE health_checks (
+CREATE TABLE IF NOT EXISTS health_checks (
   id BIGSERIAL PRIMARY KEY,
   site_id BIGINT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
   target_type TEXT NOT NULL CHECK (target_type IN ('homepage', 'css')),
@@ -21,7 +21,7 @@ CREATE TABLE health_checks (
   checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE quote_events (
+CREATE TABLE IF NOT EXISTS quote_events (
   id BIGSERIAL PRIMARY KEY,
   site_id BIGINT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
   service_name TEXT NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE quote_events (
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE risk_cases (
+CREATE TABLE IF NOT EXISTS risk_cases (
   id BIGSERIAL PRIMARY KEY,
   quote_event_id BIGINT NOT NULL REFERENCES quote_events(id) ON DELETE CASCADE,
   risk_score INTEGER NOT NULL,
@@ -45,16 +45,16 @@ CREATE TABLE risk_cases (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE risk_case_notes (
+CREATE TABLE IF NOT EXISTS risk_case_notes (
   id BIGSERIAL PRIMARY KEY,
   risk_case_id BIGINT NOT NULL REFERENCES risk_cases(id) ON DELETE CASCADE,
   note TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_health_checks_site_time ON health_checks(site_id, checked_at DESC);
-CREATE INDEX idx_quote_events_site_time ON quote_events(site_id, submitted_at DESC);
-CREATE INDEX idx_quote_events_email ON quote_events(customer_email);
-CREATE INDEX idx_quote_events_phone ON quote_events(customer_phone);
-CREATE INDEX idx_quote_events_ip ON quote_events(ip_address);
-CREATE INDEX idx_risk_cases_status ON risk_cases(status);
+CREATE INDEX IF NOT EXISTS idx_health_checks_site_time ON health_checks(site_id, checked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quote_events_site_time ON quote_events(site_id, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quote_events_email ON quote_events(customer_email);
+CREATE INDEX IF NOT EXISTS idx_quote_events_phone ON quote_events(customer_phone);
+CREATE INDEX IF NOT EXISTS idx_quote_events_ip ON quote_events(ip_address);
+CREATE INDEX IF NOT EXISTS idx_risk_cases_status ON risk_cases(status);

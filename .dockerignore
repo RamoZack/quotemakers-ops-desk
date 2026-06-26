@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.env.*
+api/target
+dashboard/node_modules
+dashboard/dist
+node_modules
+target
+db.sqlite3
+*.sqlite
+*.sqlite3

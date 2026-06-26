@@ -17,6 +17,7 @@
           pkgs.rustfmt
           pkgs.clippy
           pkgs.postgresql
+          pkgs.railway
           pkgs.nodejs_22
         ];
 
