@@ -10,7 +10,6 @@ const endpoints = {
   repeatedIp: '/risk/repeated-ip',
   repeatedContact: '/risk/repeated-contact',
   runChecks: '/checks/run',
-  syncRailway: '/inventory/railway/sync',
 };
 
 async function fetchJson(path) {
@@ -148,25 +147,6 @@ function App() {
     }
   }
 
-  async function syncRailway() {
-    setActiveAction('railway');
-    setError('');
-    setNotice('');
-
-    try {
-      const result = await postJson(endpoints.syncRailway);
-      const skipped = result.services_without_domains?.length || 0;
-      setNotice(
-        `Synced ${result.upserted_sites} Railway domains; ${skipped} app services have no public domain.`,
-      );
-      await loadDashboard(false);
-    } catch (err) {
-      setError(err.message || 'Railway sync failed');
-    } finally {
-      setActiveAction('');
-    }
-  }
-
   useEffect(() => {
     loadDashboard();
   }, []);
@@ -196,13 +176,6 @@ function App() {
           <div className="action-stack">
             <button className="refresh-button" onClick={runChecks} disabled={actionBusy || loading}>
               {activeAction === 'checks' ? 'Running...' : 'Run checks'}
-            </button>
-            <button
-              className="refresh-button secondary"
-              onClick={syncRailway}
-              disabled={actionBusy || loading}
-            >
-              {activeAction === 'railway' ? 'Syncing...' : 'Sync Railway'}
             </button>
             <button
               className="refresh-button ghost"
