@@ -7,13 +7,7 @@ RUN npm run build
 
 FROM rust:1-bookworm AS api-builder
 WORKDIR /app
-COPY api/Cargo.toml api/Cargo.lock ./api/
-RUN mkdir -p api/src \
-  && printf 'fn main() {}\n' > api/src/main.rs \
-  && cd api \
-  && cargo build --release \
-  && rm -rf src
-COPY api/src ./api/src
+COPY api ./api
 RUN cd api && cargo build --release
 
 FROM debian:bookworm-slim AS runtime
