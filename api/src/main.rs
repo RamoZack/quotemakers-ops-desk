@@ -137,6 +137,7 @@ async fn list_sites(State(state): State<AppState>) -> Result<Json<Vec<Site>>, Ap
                source, external_service_id, service_name, domain_type,
                last_seen_at, created_at, updated_at
         FROM sites
+        WHERE enabled = TRUE
         ORDER BY name
         "#,
     )
@@ -359,7 +360,8 @@ async fn failed_health_checks(
           70 AS risk_score
         FROM health_checks hc
         JOIN sites s ON s.id = hc.site_id
-        WHERE hc.ok = FALSE
+        WHERE s.enabled = TRUE
+          AND hc.ok = FALSE
           AND hc.checked_at >= now() - interval '24 hours'
         ORDER BY hc.checked_at DESC
         "#,
