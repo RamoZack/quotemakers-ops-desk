@@ -4,7 +4,9 @@ Rust + React ops dashboard for monitoring live QuoteMakers customer sites.
 
 It checks whether each deployed site is serving the homepage, critical CSS, `robots.txt`, and `sitemap.xml`, stores the results in Postgres, and shows current failures in a small dashboard. It also includes SQL-backed quote-risk views for high-value quotes, repeated IPs, and repeated contact info.
 
-Live app: <https://opsdesk-production-a01f.up.railway.app>
+Live app: <https://opsdesk.up.railway.app>
+
+![QuoteMakers Ops Desk dashboard](docs/screenshots/dashboard.png)
 
 ## Why This Exists
 
@@ -62,7 +64,7 @@ Production startup runs `scripts/start.sh`:
 
 ## Current Production Behavior
 
-- Railway project: `gallant-elegance`
+- Hosted on Railway
 - Service: `OpsDesk`
 - Database: Railway Postgres
 - Scheduler:
