@@ -1,86 +1,190 @@
 # QuoteMakers Ops Desk
 
-Internal ops dashboard for QuoteMakers site health, static asset checks, quote analytics, and suspicious quote review.
+Rust + React ops dashboard for monitoring live QuoteMakers customer sites.
 
-## Friday MVP
+It checks whether each deployed site is serving the homepage, critical CSS, `robots.txt`, and `sitemap.xml`, stores the results in Postgres, and shows current failures in a small dashboard. It also includes SQL-backed quote-risk views for high-value quotes, repeated IPs, and repeated contact info.
 
-- Rust API + Postgres backend
-- Health checks for live QuoteMakers/customer sites
-- Verify homepage `200`, CSS/static files `200`, and CSS content type
-- Store check history: status, latency, failure reason, timestamp
-- Basic dashboard: green/red site cards, broken asset alerts, recent checks
-- Quote analytics: requests by site/service/day, high-value quotes
-- Suspicious quote queue using SQL rules
-- Nix flake for reproducible dev/build
-- README, screenshots, architecture notes, resume bullet
+Live app: <https://opsdesk-production-a01f.up.railway.app>
+
+## Why This Exists
+
+QuoteMakers manages quote websites for service businesses. When a site breaks, the failure is usually operational: a domain points wrong, static assets stop serving, a deploy regresses `robots.txt`, or a customer site quietly drops offline.
+
+Ops Desk is a small external monitor for that risk. It gives QuoteMakers one place to see:
+
+- which customer sites are currently enabled for monitoring
+- whether the homepage and key static/SEO assets are responding correctly
+- recent failed checks with status code, content type, latency, and failure reason
+- quote-risk signals that could become fraud/spam review workflows
+
+## What It Demonstrates
+
+- Rust API service using Axum, Tokio, Reqwest, SQLx, and Postgres
+- SQL-first schema, migrations, seed data, and risk queries
+- React/Vite dashboard served by the Rust API in production
+- Nix flake dev shell for reproducible local tooling
+- Docker multi-stage build for Railway deployment
+- Scheduler-style background checks controlled by environment variables
+- Source-controlled ops inventory for deployed customer domains
+
+## Architecture
+
+```text
+Railway / browser
+      |
+      v
+Rust Axum API ----------------------+
+  /api/sites                        |
+  /api/checks/run                   |
+  /api/health-checks/recent         |
+  /api/ops/failed-health-checks     |
+  /api/risk/*                       |
+      |                             |
+      | SQLx                        | Reqwest probes
+      v                             v
+Postgres                    QuoteMakers customer sites
+  sites                       /
+  health_checks               /static/assets/css/main.css
+  quote_events                /robots.txt
+  risk_cases                  /sitemap.xml
+      ^
+      |
+React dashboard served from `dashboard/dist`
+```
+
+Production startup runs `scripts/start.sh`:
+
+1. Apply idempotent SQL migrations.
+2. Seed the current Railway/customer-site inventory.
+3. Soft-prune missing Railway sites with `enabled = false`.
+4. Start the Rust API.
+5. Run startup/scheduled checks when env vars are enabled.
+
+## Current Production Behavior
+
+- Railway project: `gallant-elegance`
+- Service: `OpsDesk`
+- Database: Railway Postgres
+- Scheduler:
+  - `AUTO_RUN_CHECKS=true`
+  - `RUN_CHECKS_ON_START=true`
+  - `CHECK_INTERVAL_SECONDS=1800`
+- Inventory source: `db/seeds/current_railway_sites.sql`
+- `/api/sites` returns enabled sites only
+- failed-health views filter to enabled monitored sites
+
+The seed file is the current deployed source of truth. Updating deployed inventory means editing `db/seeds/current_railway_sites.sql` and redeploying. A future version should sync through Railway's API using a scoped token instead of relying on local Railway CLI auth.
+
+## Health Check Targets
+
+For each enabled site, the checker probes:
+
+| Target | Path | Expected |
+| --- | --- | --- |
+| Homepage | `/` | `200` + `text/html` |
+| Critical CSS | `/static/assets/css/main.css` | `200` + `text/css` |
+| Robots | `/robots.txt` | `200` + `text/plain` |
+| Sitemap | `/sitemap.xml` | `200` + XML content type |
+
+Each result stores URL, status code, content type, latency, success/failure, failure reason, and timestamp.
+
+## API Endpoints
+
+```text
+GET  /api/health
+GET  /api/sites
+POST /api/checks/run
+GET  /api/health-checks/recent
+GET  /api/ops/failed-health-checks
+GET  /api/risk/high-value
+GET  /api/risk/repeated-ip
+GET  /api/risk/repeated-contact
+```
+
+There is also a local-only Railway inventory sync endpoint in the API code. It shells out to `railway status --json`, so it requires an authenticated Railway CLI in the runtime. The deployed Docker image does not depend on that path; production uses the checked-in seed file.
 
 ## Repo Layout
 
 ```text
-api/          Rust API
-dashboard/    dashboard UI
-db/           migrations, seed data, SQL rules
-docs/         screenshots and architecture notes
+api/          Rust Axum API and SQLx queries
+dashboard/    React/Vite dashboard
+db/           SQL migrations, current inventory seed, risk rules
+docs/         architecture and implementation notes
+scripts/      production startup script
+Dockerfile    multi-stage dashboard + Rust API build
+flake.nix     local dev shell
 ```
 
-## Local Setup
+## Local Development
+
+Enter the Nix dev shell:
+
+```bash
+nix develop
+```
+
+Create and seed the local database:
 
 ```bash
 createdb quotemakers_ops_desk
 psql -d quotemakers_ops_desk -f db/migrations/001_init.sql
 psql -d quotemakers_ops_desk -f db/migrations/002_site_inventory_and_checks.sql
 psql -d quotemakers_ops_desk -f db/seeds/current_railway_sites.sql
-nix develop
+```
+
+Run the API:
+
+```bash
 cd api
 cargo run
 ```
 
-The API listens on `http://127.0.0.1:3000` by default and serves the built dashboard in production.
-
-Run the dashboard in another shell:
+Run the dashboard dev server in another shell:
 
 ```bash
-nix develop
 cd dashboard
 npm install
 npm run dev
 ```
 
-The dashboard listens on `http://127.0.0.1:5173` and proxies `/api/*` to the Rust API.
+Local URLs:
 
-Useful endpoints:
+- API: `http://127.0.0.1:3000/api/health`
+- Dashboard dev server: `http://127.0.0.1:5173`
+- Production-style static dashboard: build `dashboard/dist`, then let the Rust API serve it
 
-```text
-GET  /health
-GET  /sites
-POST /inventory/railway/sync
-POST /checks/run
-GET  /health-checks/recent
-GET  /risk/high-value
-GET  /risk/repeated-ip
-GET  /risk/repeated-contact
-GET  /ops/failed-health-checks
-```
+## Build And Deploy
 
-Railway inventory sync reads the locally linked Railway project and upserts app domains into `sites`. Link this repo to the QuoteMakers Railway project before syncing:
+Build the dashboard:
 
 ```bash
-nix run nixpkgs#railway -- link \
-  --project=24b0b60a-8383-4e4e-a265-cf0708fe5388 \
-  --environment=f54b5dfd-5784-42aa-86dc-75324761798d \
-  --service=83410389-ca19-4d46-b1d9-177ddc94245b
+cd dashboard
+npm ci
+npm run build
 ```
 
-`POST /checks/run` probes each enabled site:
+Build the API:
+
+```bash
+cd api
+cargo build --release
+```
+
+The Dockerfile does both in separate build stages, then copies the compiled Rust binary, dashboard assets, SQL files, and startup script into a slim Debian runtime image.
+
+Railway runs:
+
+```bash
+/app/scripts/start.sh
+```
+
+Required production env var:
 
 ```text
-/                           expects 200 + text/html
-/static/assets/css/main.css  expects 200 + text/css
-/robots.txt                 expects 200 + text/plain
-/sitemap.xml                expects 200 + xml content type
+DATABASE_URL
 ```
 
-Production runs through `scripts/start.sh`, which applies idempotent migrations, seeds current Railway domains, then starts the API. Set these Railway variables for scheduled checks:
+Useful scheduler env vars:
 
 ```text
 AUTO_RUN_CHECKS=true
@@ -88,6 +192,18 @@ RUN_CHECKS_ON_START=true
 CHECK_INTERVAL_SECONDS=1800
 ```
 
-## Why
+## Design Choices
 
-QuoteMakers needs a small external monitor that proves customer sites are up, static assets are serving, and quote activity looks healthy.
+- `enabled=false` soft-prunes missing Railway sites instead of deleting history.
+- Health checks are stored append-only so failures can be audited over time.
+- SQL does the risk grouping because repeated IP/contact detection is clearer and cheaper close to the data.
+- The React app stays thin: fetch JSON, compute current site state, render cards/tables.
+- Nix is used for local reproducibility, not as a production dependency.
+
+## Near-Term Improvements
+
+- Replace seed-file inventory updates with Railway API token sync.
+- Add screenshots and a small architecture image for the GitHub repo.
+- Import real QuoteMakers quote submissions into `quote_events`.
+- Add a lightweight review queue for risk cases: assign, clear, flag, notes.
+- Add tests around check classification and SQL risk rules.
